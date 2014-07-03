@@ -2,21 +2,19 @@ package com.krieger.libraries.adapter;
 
 import java.util.ArrayList;
 
-import android.app.Activity;
-import android.content.Context;
 import android.database.DataSetObserver;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.BaseAdapter;
 import android.widget.ListAdapter;
 
 import com.krieger.libraries.entities.HeadedList;
 import com.krieger.libraries.interfaces.AdapterCommand;
 
-public class UniversalListAdapter implements ListAdapter{
+public class UniversalListAdapter extends BaseAdapter implements ListAdapter {
 	
 	private LayoutInflater inflater = null;
-	private Context c = null;
 	private int rowLayoutId;
 	private ArrayList<Object> data;
 	private AdapterCommand rowInflationAction;
@@ -25,8 +23,14 @@ public class UniversalListAdapter implements ListAdapter{
 	private ArrayList<Integer> sectionHeaderIndexes;
 	private int headerLayoutId;
 	private AdapterCommand headerInflationAction;
+	boolean isHeaderClickable = false;
 	
 	private boolean hasSections = false;
+	private AdapterCommand[] refreshActions = null;
+	private int[] refreshPositions = null;
+	private Object[] refreshData = null;
+	private int initialSelection = -1;
+	private AdapterCommand initAction;
 	
 	public UniversalListAdapter(LayoutInflater inflater, int rowLayoutId,
 			ArrayList<Object> data, AdapterCommand rowInflationAction) {
@@ -38,13 +42,14 @@ public class UniversalListAdapter implements ListAdapter{
 	
 	public UniversalListAdapter(LayoutInflater inflater, int rowLayoutId,
 			ArrayList<Object> data, AdapterCommand rowInflationAction,
-			int headerLayoutId, AdapterCommand headerInflationAction) {
+			int headerLayoutId, AdapterCommand headerInflationAction, boolean isHeaderClickable) {
 		this.inflater = inflater;
 		this.rowLayoutId = rowLayoutId;
 		this.data = data;
 		this.rowInflationAction = rowInflationAction;
 		this.headerLayoutId = headerLayoutId;
 		this.headerInflationAction = headerInflationAction;
+		this.isHeaderClickable=isHeaderClickable;
 		hasSections=true;
 		arrangeData();
 	}
@@ -110,15 +115,34 @@ public class UniversalListAdapter implements ListAdapter{
 			isHeader=true;
 		}
 		if (res == null){
-        	if(c!=null)
-        		res = ((Activity)c).getLayoutInflater().inflate(layout, null);
-        	else if(inflater!=null)
-        		res = inflater.inflate(layout, null);
-        }
-		if(!isHeader)
-			res=rowInflationAction.execute(getItem(position), res);
-		else
-			res=headerInflationAction.execute(getItem(position), res);
+        	res = inflater.inflate(layout, null);
+		}
+		if(refreshActions!=null){
+			for(int i=0;i<refreshPositions.length;i++){
+				if(position==refreshPositions[i]){
+					res=refreshActions[i].execute(refreshData[i], res);
+				}else{
+					if(initialSelection == position){
+						res=initAction.execute(getItem(position), res);
+					}else{
+						if(!isHeader)
+							res=rowInflationAction.execute(getItem(position), res);
+						else
+							res=headerInflationAction.execute(getItem(position), res);
+					}
+				}
+			}
+			if(position==getCount()-1){
+				refreshData = null;
+				refreshPositions = null;
+				refreshActions = null;
+			}
+		}else{
+			if(!isHeader)
+				res=rowInflationAction.execute(getItem(position), res);
+			else
+				res=headerInflationAction.execute(getItem(position), res);
+		}
         return res;
 	}
 
@@ -153,7 +177,19 @@ public class UniversalListAdapter implements ListAdapter{
 
 	@Override
 	public boolean isEnabled(int position) {
-		return getItemViewType(position)==0;
+		if(getItemViewType(position)==0)
+			return true;
+		else
+			return isHeaderClickable;
 	}
-
+	
+	public void refreshListItems(AdapterCommand[] actions, Object[] data, int[] positions,
+			int initialSelection, AdapterCommand initAction){
+		this.refreshActions = actions;
+		this.refreshPositions = positions;
+		this.refreshData  = data;
+		this.initialSelection = initialSelection;
+		this.initAction = initAction;
+		notifyDataSetChanged();
+	}
 }
